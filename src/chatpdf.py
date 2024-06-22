@@ -75,6 +75,7 @@ def get_llm_context_table(query, top_k, bm25_instance):
     if index_stats['status']['ready'] and index_stats['status']['state'] == "Ready":
         dense_query = dense_embed(query)
         sparse_query = bm25_instance.encode_queries(query)
+        print("Starting retrtieval into pinecone namespace...\n")
         relevant_matches = index.query( 
             namespace=namespace,
             filter={ 
@@ -94,7 +95,7 @@ def get_llm_context_table(query, top_k, bm25_instance):
 
 def pretty_print_text_matches(result):
         num_results = len(result['matches'])
-        print(f"Top {num_results} Relevant Chunks Found in Namespace:{result['namespace']}:\n")
+        print(f"Top {num_results} Relevant Chunks Found in Namespace {result['namespace']} in the {os.environ['PINECONE_INDEX_NAME']} index:\n")
         print("-" * 80) 
 
         for i in range(num_results):
@@ -126,6 +127,7 @@ def get_llm_context_text(query, top_k, bm25_instance):
 def llama_chat(user_question, k, bm25_instance):
     context = get_llm_context_text(user_question, k, bm25_instance)
     chat = ChatGroq(temperature=0, model_name=chat_model)
+    print("Connection to GROQ client successful... \n")
     system = '''
             You are a Science Professor in a university. 
             Given the user's question and relevant excerpts from a set of school notes about scientific methodology and the history of science,
@@ -133,8 +135,8 @@ def llama_chat(user_question, k, bm25_instance):
             along with the page number where the answer or answers can be found.
             
             For example:
-            Answer:
-            Reference Page(s): 
+            LLM Output:
+            Refer to these page(s) to find the relevant material: 
             '''
     human = "{text}"
     prompt = ChatPromptTemplate.from_messages(
