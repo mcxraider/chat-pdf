@@ -1,0 +1,7 @@
+.env
+.DS_Store
+
+# Data files 
+ROC\ Project/chat_data
+RAG/data/Physiology
+telebot
