@@ -74,7 +74,7 @@ def get_llm_context_table(query, top_k, bm25_instance):
     index_stats = pc.describe_index(os.environ['PINECONE_INDEX_NAME'])
     if index_stats['status']['ready'] and index_stats['status']['state'] == "Ready":
         dense_query = dense_embed(query)
-        sparse_query = bm25_instance.encode_queries(query)
+        sparse_query = bm25_instance.encode(query)
         print("Starting retrtieval into pinecone namespace...\n")
         relevant_matches = index.query( 
             namespace=namespace,
@@ -117,7 +117,7 @@ def get_llm_context_text(query, top_k, bm25_instance):
             sparse_vector=sparse_query, 
             include_metadata=True
             )
-    pretty_print_text_matches(relevant_matches)
+    # pretty_print_text_matches(relevant_matches)
     # ideally its just to combine the first 2 matches. Or maybe to go by dotproduct score and difference 
     context = ""
     for i in range(len(relevant_matches['matches'])):
@@ -125,7 +125,7 @@ def get_llm_context_text(query, top_k, bm25_instance):
     return context
 
 def llama_chat(user_question, k, bm25_instance):
-    context = get_llm_context_text(user_question, k, bm25_instance)
+    context_table = get_llm_context_table(user_question, k, bm25_instance)
     chat = ChatGroq(temperature=0, model_name=chat_model)
     print("Connection to GROQ client successful... \n")
     system = '''
