@@ -1,0 +1,2 @@
+Observation,Explanation,Test the explanation,Result of test
+"Laptop seems boot, but there’s nothing on the screen",Laptop monitor not working,Try connecting the external monitor with HDMI cable 2,Laptop definitely boots and the external monitor shows the start screen.
