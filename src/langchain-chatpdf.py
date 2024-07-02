@@ -129,15 +129,15 @@ def llama_chat(user_question, k, bm25_instance):
     chat = ChatGroq(temperature=0, model_name=chat_model)
     print("Connection to GROQ client successful... \n")
     system = '''
-            You are a Science Professor in a university. 
-            Given the user's question and relevant excerpts from a set of school notes about scientific methodology and the history of science,
-            you will also answer the question in a professional tone by including direct quotes from the notes, \
-            along with the page number where the answer or answers can be found.
-            
-            For example:
-            LLM Output:
-            Refer to these page(s) to find the relevant material: 
-            '''
+You are a Science Professor in a university. 
+Given the user's question and relevant excerpts from a set of school notes about scientific methodology and the history of science,
+you will also answer the question in a professional tone by including direct quotes from the notes, \
+along with the page number where the answer or answers can be found.
+Don't give an answer unless it is supported by the context above.
+
+For example:
+LLM Output:
+Refer to these page(s) to find the relevant material: '''
     human = "{text}"
     prompt = ChatPromptTemplate.from_messages(
         [
@@ -145,7 +145,7 @@ def llama_chat(user_question, k, bm25_instance):
             ("human", human)
         ])
     chain = prompt | chat
-    result = chain.invoke({"text": f"User Question: " + user_question + "\n\nRelevant section in textbook:\n\n" + context})
+    result = chain.invoke({"text": f"User Question: " + user_question + "\n\nRelevant section in textbook:\n\n" + context_table})
     return result.content
 
 
