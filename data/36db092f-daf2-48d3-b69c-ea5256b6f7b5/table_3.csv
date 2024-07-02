@@ -1,0 +1,2 @@
+Observation,Explanation,Test the explanation,Result of test
+"Laptop seems to boot, but there’s nothing on the screen",Laptop monitor not working,Try connecting the external monitor with HDMI cable 1,"Laptop seems to boot, but there’s nothing on the screen. (a) Either the graphics card or motherboard has issues, or (b) Something was wrong with our test."
