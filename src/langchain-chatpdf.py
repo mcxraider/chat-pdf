@@ -125,7 +125,7 @@ def get_llm_context_text(query, top_k, bm25_instance):
     return context
 
 def llama_chat(user_question, k, bm25_instance):
-    context_table = get_llm_context_table(user_question, k, bm25_instance)
+    context_table = get_llm_context_text(user_question, k, bm25_instance)
     chat = ChatGroq(temperature=0, model_name=chat_model)
     print("Connection to GROQ client successful... \n")
     system = '''
