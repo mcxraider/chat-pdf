@@ -1,4 +1,4 @@
-# Advanced Retrieval-Augmented Generation (RAG) Project
+# Advanced Retrieval-Augmented Generation (RAG) for PDFs
 
 ## Overview
 
@@ -10,8 +10,7 @@ The pipeline uses Adobe PDF Services for extracting structured text from PDFs, a
 
 ### 1. **PDF Text Extraction**
    - **Adobe PDF Services Integration**: This project integrates with Adobe PDF Services to handle the extraction of text and table data from PDF files. The process involves uploading the PDF document to Adobe's cloud-based service, which then processes the document and extracts structured data such as paragraphs, headers, and table contents.
-   - **Handling of Complex PDF Structures**: The extraction process is designed to manage complex document structures, including multi-column layouts, nested tables, and embedded images. The extracted content is returned as structured data, which is then processed further for text analysis and retrieval tasks.
-   - **Error Handling**: The extraction class is equipped with robust error handling to catch and log exceptions related to the Adobe PDF Services API, ensuring that the extraction process can gracefully handle issues like API limits, malformed PDFs, or network errors.
+   - **Handling of Complex PDF Structures (Currently unavailable)**: The extraction process is designed to manage complex document structures, including multi-column layouts, nested tables, and embedded images. The extracted content is returned as structured data, which is then processed further for text analysis and retrieval tasks.
 
 ### 2. **Text Chunking**
    - **Recursive Character Text Splitting**: The extracted text from the PDF is split into smaller, more manageable chunks using the RecursiveCharacterTextSplitter. This method splits text based on a hierarchy of separators (e.g., paragraphs, sentences, and words), which allows for flexible chunk sizes that can be tailored to specific downstream tasks like text embedding or semantic analysis.
@@ -40,11 +39,11 @@ The pipeline uses Adobe PDF Services for extracting structured text from PDFs, a
 - Required libraries: `os`, `logging`, `json`, `uuid`, `warnings`, `io`, `zipfile`, `re`, `time`, `tqdm`, `dotenv`, `numpy`, `adobe.pdfservices`, `pinecone`, `langchain`, `llama_index`, `sentence-transformers`
 
 
-## Installation
+## Installation Guide
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/rag-project.git
+   git clone https://github.com/mcxraider/chat-pdf.git
    ```
 2. Install the required dependencies:
    ```bash
