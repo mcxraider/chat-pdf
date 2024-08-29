@@ -14,6 +14,7 @@ import nltk
 from groq import Groq
 from tqdm import tqdm
 import sys
+import requests
 
 # Adobe PDF Services imports
 from adobe.pdfservices.operation.auth.service_principal_credentials import ServicePrincipalCredentials
@@ -30,10 +31,8 @@ from adobe.pdfservices.operation.pdfjobs.result.extract_pdf_result import Extrac
 # Pinecone and Langchain imports
 from pinecone import Pinecone, ServerlessSpec
 from pinecone_text.sparse import BM25Encoder
-from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import PromptTemplate
-from langchain_core.pydantic_v1 import BaseModel, Field
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_core.pydantic_v1 import  Field
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -54,7 +53,6 @@ nltk.download('punkt_tab')
 # Import other necessary modules
 from llama_index.legacy import Document
 from llama_index.legacy.embeddings.huggingface import HuggingFaceEmbedding
-from llama_index.legacy.vector_stores import PineconeVectorStore
 from typing import Any, Callable, List, Optional, Sequence, TypedDict
 
 import numpy as np
@@ -82,13 +80,10 @@ with open('components/prompts.yaml', 'r') as file:
 
 RAG_GENERATE_ANSWER = config['RAG_GENERATE_ANSWER']
 QUERY_REWRITER = config['QUERY_REWRITER']
-
+PINECONE_INDEX_NAME = "rag-testing-hybrid"
 
 # ## Utils
-def is_file_present(folder_path, file_name):
-    # Construct the full path to the file
-    file_path = os.path.join(folder_path, file_name)
-    
+def is_file_present(file_path):
     # Check if the path is a file
     return os.path.isfile(file_path)
 
@@ -157,14 +152,36 @@ def get_extracted_data(extracted_data):
         json_data = json.loads(extracted_data['structuredData.json'])
     return json_data
 
+def extract_pdf(file_path):
+    extractor, unique_id = ExtractTextTableInfoFromPDF.create_with_unique_id(file_path)
+    extracted_data = extractor.extracted_data
+    pdf_data = get_extracted_data(extracted_data)
+    filename = file_path.split("/")[-1].split(".")[0]
+    
+    # Sent this information to database
+    def export_to_db(fname):
+        with open(f"../data/{fname}.json", "w", encoding="utf-8") as fout:
+            json.dump(pdf_data, fout)
+            
+    export_to_db(filename)
+    return unique_id
+
+def load_pdf(fname):
+    
+    def load_from_db(fname):
+        with open(f"../data/{fname}.json", "r", encoding='utf-8') as fin:
+            pdf_data = json.load(fin)
+        return pdf_data
+    
+    pdf_data = load_from_db(fname)
+    return pdf_data
+
 # Function to obtain text chunks using the text splitter
-def get_text_chunks(file_path, json_data):
+def get_text_chunks(filename, json_data):
     if 'elements' not in json_data:
         logging.error("Missing 'elements' key in json_data")
         raise ValueError("Missing 'elements' key in json_data")
         
-    file_name = file_path.split("/")[-1]
-
     # Chunks are split by pages here
     page_text = ""
     start_page = 0
@@ -184,7 +201,7 @@ def get_text_chunks(file_path, json_data):
                 # Update the new page number
                 start_page = current_page               
          
-                all_texts.append({'ElementType': 'Text', 'file_name': file_name, 'Page': current_page, 'Text': page_text})
+                all_texts.append({'ElementType': 'Text', 'file_name': filename, 'Page': current_page, 'Text': page_text})
                 page_text = ""
                 list_label = ""
             else:
@@ -203,7 +220,7 @@ def get_text_chunks(file_path, json_data):
     
     # Processing the last page of the text
     if page_text:
-        all_texts.append({'ElementType': 'Text', 'file_name': file_name, 'Page': current_page, 'Text': page_text})
+        all_texts.append({'ElementType': 'Text', 'file_name': filename, 'Page': current_page, 'Text': page_text})
 
     return all_texts
 
@@ -254,31 +271,6 @@ def convert_pagetexts_to_nodes(text_chunks):
         d.text = cleaned_text
         page_nodes.append(d)
     return page_nodes
-
-
-def extract_pdf(file_path):
-    extractor, unique_id = ExtractTextTableInfoFromPDF.create_with_unique_id(file_path)
-    extracted_data = extractor.extracted_data
-    pdf_data = get_extracted_data(extracted_data)
-    filename = file_path.split("/")[-1]
-    
-    # Sent this information to database
-    def export_to_db(fname):
-        with open(f"../data/{fname}.json", "w", encoding="utf-8") as fout:
-            json.dump(pdf_data, fout)
-            
-    export_to_db(filename)
-    return unique_id
-
-def load_pdf(file_path):
-    fname = file_path.split("/")[-1]
-    
-    def load_from_db(fname):
-        with open(f"../data/{fname}.json", "r", encoding='utf-8') as fin:
-            pdf_data = json.load(fin)
-        return pdf_data
-    pdf_data = load_from_db(fname)
-    return pdf_data
 
 
 class SentenceCombination(TypedDict):
@@ -530,25 +522,31 @@ def load_bm25_instance(pickle_path):
     print("bm25 model loaded")
     return bm25_instance
 
-# Embedding model is customisable 
 def load_embedding_model(model_name='sentence-transformers/all-mpnet-base-v2'):
     embed_model = HuggingFaceEmbedding(model_name)
     return embed_model
 
-
-def get_semantic_nodes(embedding_model, page_documents, buffer_size=1, breakpoint_threshold=85):
+def get_semantic_nodes(embedding_model, page_documents, buffer_size=1, breakpoint_threshold=85, batch_size=3):
     parser = SemanticSplitterNodeParser.from_defaults(
-        embed_model = embedding_model,  
-        buffer_size = buffer_size,  
-        breakpoint_percentile_threshold = breakpoint_threshold,
-        include_prev_next_rel = False
+        embed_model=embedding_model,  
+        buffer_size=buffer_size,  
+        breakpoint_percentile_threshold=breakpoint_threshold,
+        include_prev_next_rel=False
     )
 
-    # Here we semantically chunk the nodes into semantically split nodes
-    semantic_nodes = parser._parse_nodes(page_documents, show_progress=False)
+    node_texts = []
+    
+    # Process the page_documents in batches
+    for batch_start in trange(0, len(page_documents), batch_size):
+        batch_end = min(batch_start + batch_size, len(page_documents))
+        batch_docs = page_documents[batch_start:batch_end]
 
-    # proceed to embed each node so that u can upsert the lowercased text with the embeddings
-    node_texts = [node.text.lower() for node in semantic_nodes]
+        # Semantically chunk the nodes for the current batch
+        semantic_nodes = parser._parse_nodes(batch_docs, show_progress=False)
+
+        # Lowercase and store the text of each node
+        node_texts.extend([node.text.lower() for node in semantic_nodes if node.text])
+    
     return node_texts
 
 
@@ -559,8 +557,7 @@ def fit_export_bm25(node_texts, bm_25_path):
     
     save_bm25_instance(bm25_instance, model_path=bm_25_path)
 
-
-def create_pinecone_index(hybrid_search):
+def create_pinecone_index(index_name):
     if index_name not in pc.list_indexes().names():
         logging.info("Creating pinecone index...")
         pc.create_index(
@@ -572,52 +569,80 @@ def create_pinecone_index(hybrid_search):
     else:
         logging.info(f"Pinecone index with name: \"{index_name}\" already created")
 
-def generate_pinecone_upsert_data_batch(embedding_model, bm25_instance, node_texts, batch_size=30):
-    pinecone_text_upserts = []
+def dense_embed(payload: str) -> str:
+            response = requests.post(dense_embedder_api, headers={"Authorization": f"Bearer {hf_key}"}, json=payload)
+            return response.json()
+        
+def generate_and_upsert_pinecone_data(bm25_instance, node_texts, namespace, batch_size=10):
+    logging.info(f"Starting upsertion to namespace {namespace}...")
 
-    for batch_start in tqdm(range(0, len(node_texts), batch_size), desc="Processing Batches"):
+    # Process and upsert data in batches
+    for batch_start in tqdm(range(0, len(node_texts), batch_size), desc="Processing and Upserting Batches"):
         batch_end = min(batch_start + batch_size, len(node_texts))
         batch_texts = node_texts[batch_start:batch_end]
 
         # Generate embeddings for the batch
-        dense_embeddings = embedding_model._embed(batch_texts)
+        # dense_embeddings = embedding_model._embed(batch_texts)
+        dense_embeddings = dense_embed(batch_texts)
         # Generate sparse embeddings for the batch
         sparse_embeddings = bm25_instance.encode(batch_texts)
 
-        for i in range(len(batch_texts)):
-            pinecone_text_upserts.append({
-                'id': f"vector{batch_start + i + 1}",
-                'values': dense_embeddings[i],
-                'sparse_values': sparse_embeddings[i],
-                'metadata': {'text': batch_texts[i]}
-            })
+        # Prepare the batch for upsertion
+        pinecone_batch = []
+        try:
+            for i in range(len(batch_texts)):
+                if sparse_embeddings[i]['indices']:  # Check if sparse vector is not empty
+                    pinecone_batch.append({
+                        'id': f"vector{batch_start + i + 1}",
+                        'values': dense_embeddings[i],
+                        'sparse_values': sparse_embeddings[i],
+                        'metadata': {'text': batch_texts[i]}
+                    })
+                else:  # If sparse vector is empty, only upsert dense values
+                    print(f"vector{batch_start + i + 1} had no sparse indices...")
+                    pinecone_batch.append({
+                        'id': f"vector{batch_start + i + 1}",
+                        'values': dense_embeddings[i],
+                        'sparse_values': {"indices": [0], "values": [1e-6]},
+                        'metadata': {'text': batch_texts[i]}
+                    })
+                    
+        except KeyError:
+            # Try this iteration again
+            pinecone_batch = []
+            for i in range(len(batch_texts)):
+                if sparse_embeddings[i]['indices']:  # Check if sparse vector is not empty
+                    pinecone_batch.append({
+                        'id': f"vector{batch_start + i + 1}",
+                        'values': dense_embeddings[i],
+                        'sparse_values': sparse_embeddings[i],
+                        'metadata': {'text': batch_texts[i]}
+                    })
+                else:  # If sparse vector is empty, only upsert dense values
+                    print(f"vector{batch_start + i + 1} had no sparse indices...")
+                    pinecone_batch.append({
+                        'id': f"vector{batch_start + i + 1}",
+                        'values': dense_embeddings[i],
+                        'sparse_values': {"indices": [0], "values": [1e-6]},
+                        'metadata': {'text': batch_texts[i]}
+                    })
+            
 
-    return pinecone_text_upserts
-
-def upsert_pinecone_data(file_path, pinecone_text_upserts, batch_size=30):  
-    # Generate a new UUID for the namespace
-    namespace = file_path.split("/")[-1]
-    logging.info(f"Starting upsertion to namespace {namespace}...")
-
-    # Upsert data in batches
-    for batch_start in tqdm(range(0, len(pinecone_text_upserts), batch_size), desc="Upserting Batches"):
-        batch_end = min(batch_start + batch_size, len(pinecone_text_upserts))
-        pinecone_batch = pinecone_text_upserts[batch_start:batch_end]
-
+        # Upsert the batch to Pinecone
         pinecone_index.upsert(vectors=pinecone_batch, namespace=namespace)
-        logging.info(f"Upserting batch {batch_start // batch_size + 1}...")
+        logging.info(f"Upserted batch {batch_start // batch_size + 1}...")
 
     time.sleep(10)
     index_status = pinecone_index.describe_index_stats()
     time.sleep(5)
 
-    if index_status['namespaces'][namespace]['vector_count'] == len(pinecone_text_upserts):
+    if index_status['namespaces'][namespace]['vector_count'] == len(node_texts):
         logging.info(f"All vectors uploaded successfully to namespace {namespace}")
-        return namespace, True
+        return True
     else:
         logging.error(f"Not all vectors were upserted to namespace {namespace}. Exiting...")
-        return namespace, False
-
+        return False
+    
 
 def modify_vector_query(dense, sparse, alpha: float):
     """Hybrid score using a convex combination
@@ -644,7 +669,8 @@ def modify_vector_query(dense, sparse, alpha: float):
 def retrieve_context(index, index_name, namespace, query, embedding_model, bm25_model, top_k ):
     index_stats = pc.describe_index(index_name)
     if index_stats['status']['ready'] and index_stats['status']['state'] == "Ready":
-        dense_query = embedding_model._embed(query)
+        # dense_query = embedding_model._embed(query)
+        dense_query = dense_embed([query])
         sparse_query = bm25_model.encode(query)
         relevant_matches = index.query( 
             namespace=namespace,
@@ -659,7 +685,6 @@ def retrieve_context(index, index_name, namespace, query, embedding_model, bm25_
     else:
         logging.error("Pinecone index not ready for retrieval, check connection properly...")
 
-# Edit this for query re writing function
 def enhance_query(query, query_rewriter_prompt):
     # Prepare the prompt using the provided answer prompt template, text, and list of questions
     prompt = PromptTemplate(
@@ -780,8 +805,7 @@ def rag_chat(question, context, rag_prompt, client):
     # Return the dictionary containing the generated answers
     return cleaned_answer
 
-
-def rag_pipeline(query, rag_prompt, query_rewriter_prompt, top_k):
+def rag_pipeline(query, index_name, namespace, rag_prompt, query_rewriter_prompt, top_k):
     # Function to send query to database
     enhanced_query = enhance_query(query, query_rewriter_prompt)['Query']
     retrieved_context = retrieve_context(pinecone_index, index_name, namespace, enhanced_query, embed_model, bm25_instance, top_k=5)
@@ -804,16 +828,15 @@ def chatbot():
             break
 
         # Process the query with your RAG system
-        answer = pipeline(user_query, RAG_GENERATE_ANSWER, top_k=5)
+        answer = rag_pipeline(user_query, RAG_GENERATE_ANSWER, top_k=5)
 
         print("-" * 100)
         print("ANSWER:\n\n" + answer + "\n")
         print("-" * 100)
         i += 1
-        
 
-if __name__ == "__main__":
-    
+
+def check_upsert_decision():
     if len(sys.argv) > 1:
         # Convert the first argument to a boolean based on "yes" or "no"
         input_bool = sys.argv[1].lower()
@@ -826,58 +849,47 @@ if __name__ == "__main__":
             sys.exit(1)  # Exit the script with an error code
     else:
         # No input provided, assume no upsert is needed
-        to_upsert = False
-        
-    file_path = '../PDF/HSI1000-chapter1.pdf'
-    filename = file_path.split("/")[-1]
-    pickle_path = f'../src/components/hybrid-rag/{filename}bm25_model.pkl'
-    namespace = filename
-    
-    if to_upsert:
+        to_upsert = False  
+    return to_upsert    
 
+
+if __name__ == "__main__":
+    file_path = '../PDF/HSI1000-chapter1.pdf'
+    filename = file_path.split("/")[-1].split(".")[0].lower()
+    namespace = filename
+    pickle_path = f'components/hybrid-rag/bm25_{filename}.pkl'
+    
+    pc = Pinecone(api_key=pinecone_api_key)
+    pinecone_index = pc.Index(PINECONE_INDEX_NAME)
+    
+    if check_upsert_decision():
         # extract_pdf(file_path)
-        pdf_data = load_pdf(file_path)
-        page_texts = get_text_chunks(file_path, pdf_data)
+        pdf_data = load_pdf(filename)
+        page_texts = get_text_chunks(filename, pdf_data)
         page_documents = convert_pagetexts_to_nodes(page_texts)
 
         embed_model = load_embedding_model()
 
-        # Limit the number of page_documents to embed
-        node_texts = get_semantic_nodes(embed_model, page_documents[:3])
+        node_texts = get_semantic_nodes(embed_model, page_documents)
 
-        if not is_file_present(folder_path = "../src/components/hybrid-rag", file_name = f"{filename}bm25_model.pkl"):
+        # Save new sparse encoder model
+        if not is_file_present(pickle_path):
             fit_export_bm25(node_texts, bm_25_path=pickle_path)
             
         bm25_instance = load_bm25_instance(pickle_path=pickle_path)
-        pinecone_data = generate_pinecone_upsert_data_batch(embed_model, bm25_instance, node_texts)
+        create_pinecone_index(filename)
 
-        pc = Pinecone(api_key=pinecone_api_key)
-        index_name = "rag-testing-hybrid"
-        create_pinecone_index(hybrid_search=True)
-
-        # Initialize your index
-        pinecone_index = pc.Index(index_name)
-
-        namespace, success = upsert_pinecone_data(file_path, pinecone_data)
+        success = generate_and_upsert_pinecone_data(bm25_instance, node_texts, namespace)
         if success:
             logging.info(f"Data successfully upserted into namespace: {namespace}")
         else:
             logging.error(f"Failed to upsert data into namespace: {namespace}")
+    
     else:
-        embed_model = load_embedding_model()
         bm25_instance = load_bm25_instance(pickle_path=pickle_path)
-        pc = Pinecone(api_key=pinecone_api_key)
-        index_name = "rag-testing-hybrid"
-        # Initialize your index
-        pinecone_index = pc.Index(index_name)
 
-        
-        # some queries to try:
-        # query = "What is the scientific method used for?"
-        # query = "Why is science self correcting?"
-        # query = "Why is science self-correcting?"
 
-        # Chatbot function
+    # Chatbot function
     i=0
     while True:
             # Take user input
@@ -892,7 +904,7 @@ if __name__ == "__main__":
                 break
             
             # Process the query with your RAG system
-            answer = rag_pipeline(user_query, RAG_GENERATE_ANSWER, QUERY_REWRITER, top_k=5)
+            answer = rag_pipeline(user_query, PINECONE_INDEX_NAME, namespace, RAG_GENERATE_ANSWER, QUERY_REWRITER, top_k=5)
 
             print("-" * 100)
             print("ANSWER:\n\n" + answer + "\n")
