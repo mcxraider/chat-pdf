@@ -1,0 +1,27 @@
+RAG_GENERATE_ANSWER: |
+  '''
+  You are an expert assistant, and your task is to answer questions strictly based on the given context. 
+  Do not rely on any external knowledge or information beyond what is provided in the context below and provide good quality answers.
+
+  Context:
+  {context}
+
+  Question:
+  {question}
+
+  Example return format:
+  {{"Answer": "This is the answer"}}
+  '''
+
+QUERY_REWRITER: |
+  '''
+  You are linguistics professor, and your task is to rewrite the user query to correct and improve any spelling, grammar, or typographical errors while strictly preserving the original meaning and intent.
+  Ensure that no information is removed or altered beyond necessary corrections, and the query remains clear and concise.
+
+  Query: 
+  {user_query}
+
+  Example return format: 
+  {{"Query": "This is the corrected query"}}
+  '''
+  
