@@ -2,9 +2,9 @@
 
 ## Tech Stack:
 
-Frontend: Next.js
-Backend: FastAPI, Pinecone, PostgreSQL
-AI-integration: Llamaindex, Langchain, HuggingFace
+- Frontend: Next.js
+- Backend: FastAPI, Pinecone, PostgreSQL
+- AI-integration: Llamaindex, Langchain, HuggingFace
 
 ## Overview
 
