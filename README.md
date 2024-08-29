@@ -1,5 +1,11 @@
 # Advanced Retrieval-Augmented Generation (RAG) for PDFs
 
+## Tech Stack:
+
+Frontend: Next.js
+Backend: FastAPI, Pinecone, PostgreSQL
+AI-integration: Llamaindex, Langchain, HuggingFace
+
 ## Overview
 
 This project demonstrates a complete pipeline for a Retrieval-Augmented Generation (RAG) system. The primary objective is to extract text data from PDF documents, semantically process and embed this data, and store it in Pinecone for efficient retrieval during query time. 
