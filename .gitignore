@@ -2,3 +2,4 @@
 .DS_Store
 examples
 venv
+node_modules
