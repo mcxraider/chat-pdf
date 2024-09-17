@@ -10,11 +10,7 @@ import { cn } from "@/app/lib/utils";
 import Link from "next/link";
 import { IconHome, IconMessage, IconUser } from "@tabler/icons-react";
 
-export const FloatingNav = ({
-  className,
-}: {
-  className?: string;
-}) => {
+export const FloatingNav = ({ className }: { className?: string }) => {
   const navItems = [
     {
       name: "Home",
@@ -42,7 +38,8 @@ export const FloatingNav = ({
     if (typeof current === "number") {
       let direction = current! - scrollYProgress.getPrevious()!;
 
-      if (scrollYProgress.get() <= 0.01) { // Check if at the very top of the scroll
+      if (scrollYProgress.get() <= 0.01) {
+        // Check if at the very top of the scroll
         setVisible(true); // Make it visible when at the top
       } else {
         if (direction < 0) {
