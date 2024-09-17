@@ -57,7 +57,8 @@ load_dotenv()
 hf_key = os.getenv("HUGGINGFACE_API_KEY")
 pinecone_api_key = os.getenv("PINECONE_API_KEY")
 openai_api_key = os.getenv("OPENAI_API_KEY")
-dense_embedder_api = os.getenv("HF_API_URL")
+dense_embedder_api = os.getenv("HF_EMBEDDER_API_URL")
+dense_embedder_similarity_api = os.getenv("HF_EMBEDDING_SIMILARITY_API")
 
 GROQ_API_KEY = os.environ["GROQ_API_KEY"]
 CHAT_MODEL = "llama3-70b-8192"
@@ -328,20 +329,24 @@ def convert_pagetexts_to_nodes(text_chunks):
     return page_nodes
 
 
+def get_dense_embeddings(payload: list) -> list:
+    # Takes in a list of strings, and returns a 2D list of embeddings
+    response = requests.post(
+        dense_embedder_api, headers={"Authorization": f"Bearer {hf_key}"}, json=payload
+    )
+ 
+    return response.json()
+
+def load_embedding_model(model_name='sentence-transformers/all-mpnet-base-v2'):
+    embed_model = HuggingFaceEmbedding(model_name)
+    return embed_model
+
 class SentenceCombination(TypedDict):
     sentence: str
     index: int
     combined_sentence: str
     combined_sentence_embedding: List[float]
-
-
-def dense_embed(payload: str) -> str:
-    response = requests.post(
-        dense_embedder_api, headers={"Authorization": f"Bearer {hf_key}"}, json=payload
-    )
-    return response.json()
-
-
+    
 class SemanticSplitterNodeParser(NodeParser):
     """Semantic node parser.
 
@@ -553,7 +558,6 @@ class SemanticSplitterNodeParser(NodeParser):
 
         return chunks
 
-
 class BM25Singleton:
     _instance = None
 
@@ -590,20 +594,13 @@ def load_bm25_instance(pickle_path):
     return bm25_instance
 
 
-def load_embedding_model(model_name="sentence-transformers/all-mpnet-base-v2"):
-    embed_model = HuggingFaceEmbedding(model_name)
-    return embed_model
-
-
 def get_semantic_nodes(
-    embedding_model,
     page_documents,
     buffer_size=1,
     breakpoint_threshold=85,
     batch_size=3,
 ):
     parser = SemanticSplitterNodeParser.from_defaults(
-        embed_model=embedding_model,
         buffer_size=buffer_size,
         breakpoint_percentile_threshold=breakpoint_threshold,
         include_prev_next_rel=False,
@@ -646,13 +643,6 @@ def create_pinecone_index(index_name):
         logging.info(f'Pinecone index with name: "{index_name}" already created')
 
 
-def dense_embed(payload: str) -> str:
-    response = requests.post(
-        dense_embedder_api, headers={"Authorization": f"Bearer {hf_key}"}, json=payload
-    )
-    return response.json()
-
-
 def generate_and_upsert_pinecone_data(
     bm25_instance, node_texts, namespace, batch_size=10
 ):
@@ -667,7 +657,7 @@ def generate_and_upsert_pinecone_data(
 
         # Generate embeddings for the batch
         # dense_embeddings = embedding_model._embed(batch_texts)
-        dense_embeddings = dense_embed(batch_texts)
+        dense_embeddings = get_dense_embeddings(batch_texts)
         # Generate sparse embeddings for the batch
         sparse_embeddings = bm25_instance.encode(batch_texts)
 
@@ -771,7 +761,7 @@ def retrieve_context(
     index_stats = pc.describe_index(index_name)
     if index_stats["status"]["ready"] and index_stats["status"]["state"] == "Ready":
         # dense_query = embedding_model._embed(query)
-        dense_query = dense_embed([query])
+        dense_query = get_dense_embeddings([query])
         sparse_query = bm25_model.encode(query)
         relevant_matches = index.query(
             namespace=namespace,
