@@ -6,13 +6,13 @@ export default function Footer() {
         backgroundColor: "#333",
         color: "white",
         marginTop: "auto",
-        display: "flex",            // Enable flexbox
-        justifyContent: "center",   // Horizontally center the content
-        alignItems: "center",       // Vertically center the content
-        textAlign: "center",        // Ensure text is centered (useful for multi-line text)
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        textAlign: "center",
       }}
     >
-      <p>&copy; 2024 Chat-pdf</p>
+      <p>&copy; 2024 chat-pdf By Jerry Yang</p>
     </footer>
   );
 }
