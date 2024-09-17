@@ -23,12 +23,15 @@ async def get_data():
         "data": {
             "item_1": "Value 1",
             "item_2": "Value 2",
-        }
+        },
     }
     return JSONResponse(content=data)
+
 
 @app.post("/upload/")
 async def upload_file(file: UploadFile = File(...)):
     content = await file.read()  # Read the file content (if needed)
     # Here, you could save the file or process it as needed
-    return JSONResponse(content={"filename": file.filename, "message": "File uploaded successfully!"})
+    return JSONResponse(
+        content={"filename": file.filename, "message": "File uploaded successfully!"}
+    )

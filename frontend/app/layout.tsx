@@ -20,10 +20,19 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className} style={{ margin: 0, padding: 0 }}>
         <FloatingNav />
-        <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            minHeight: "100vh",
+          }}
+        >
           <main style={{ flex: 1 }}>
             {children}
-            <div style={{ height: "500px", backgroundColor: "black" }}></div> {/* Put the tech stack cards thing here*/}
+            <div
+              style={{ height: "500px", backgroundColor: "black" }}
+            ></div>{" "}
+            {/* Put the tech stack cards thing here*/}
           </main>
           <Footer />
         </div>
@@ -31,4 +40,3 @@ export default function RootLayout({
     </html>
   );
 }
-
