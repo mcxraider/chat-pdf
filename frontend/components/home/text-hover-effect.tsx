@@ -33,14 +33,14 @@ export const TextHoverEffect = ({
       ref={svgRef}
       width="100%" // Ensure the container supports this
       height="20%"
-      viewBox="0 -78 580 200" 
+      viewBox="0 -78 580 200"
       xmlns="http://www.w3.org/2000/svg"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onMouseMove={(e) => setCursor({ x: e.clientX, y: e.clientY })}
       className="select-none"
       style={{ display: "block", margin: "0 auto 0 auto" }} // Centering left and right, and adding margin at the top
-      >
+    >
       <defs>
         <linearGradient
           id="textGradient"
@@ -66,10 +66,10 @@ export const TextHoverEffect = ({
           r="20%"
           animate={maskPosition}
           transition={{
-              type: "spring",
-              stiffness: 300,
-              damping: 50,
-            }}
+            type: "spring",
+            stiffness: 300,
+            damping: 50,
+          }}
         >
           <stop offset="0%" stopColor="white" />
           <stop offset="100%" stopColor="black" />
