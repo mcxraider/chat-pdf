@@ -1,5 +1,6 @@
 # Advanced Retrieval-Augmented Generation (RAG) for PDFs
 
+## Home Page:
 ![Frontend Architecture](Architecture/Frontend_.png)
 
 ## Tech Stack:
