@@ -1,5 +1,7 @@
 # Advanced Retrieval-Augmented Generation (RAG) for PDFs
 
+![Frontend Architecture](Architecture/Frontend_.png)
+
 ## Tech Stack:
 
 - Frontend: Next.js
